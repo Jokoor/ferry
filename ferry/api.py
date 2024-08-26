@@ -6,6 +6,7 @@ import os
 from frappe.utils import get_files_path
 from frappe import _
 import json
+from frappe.utils import random_string
 
 from frappe.utils.file_manager import save_file
 
@@ -102,13 +103,14 @@ def generate_pdf_url(doctype, name, format=None, no_letterhead=0, language=None,
 
 #create sales invoice
 @frappe.whitelist()
-def make_sales_invoice(customer):
+def make_sales_invoice(customer, qty, rate):
+    # check if ticket id exists
     if not frappe.db.exists("Customer", customer):
          return 0
     customer_doc = frappe.get_doc("Customer", customer)
        
     customer_balance = cint(customer_doc.custom_customer_balance)
-    if customer_balance < 35:
+    if customer_balance < (float(rate) * cint(qty)):
         return 1
     else:
         doc = frappe.get_doc({
@@ -117,14 +119,14 @@ def make_sales_invoice(customer):
             "items": [
                 {
                     "item_code": "Passenger Ticket",
-                    "qty": 1,
-                    "rate": 35
+                    "qty": qty,
+                    "rate": rate
                 }
             ]
         })
         doc.insert()
         doc.submit()
-        remaining_balance = customer_balance - 35
+        remaining_balance = customer_balance - (float(rate) * cint(qty))
 
         frappe.db.set_value("Customer", customer, "custom_customer_balance", remaining_balance)
         frappe.db.commit()
@@ -165,85 +167,9 @@ def make_payment(inv):
     doc.submit()
     frappe.db.commit()
 #validte custome rbalanc
-def validate_balance(customer):
+@frappe.whitelist()
+def validate_balance(customer, amount):
     balance = frappe.db.get_value("Customer", customer, "custom_customer_balance")
-    if cint(balance) < cint(amount):
+    if float(balance) < float(amount):
         return "Customer is low in balance, please refill your card"
 
-
-#create sales invoice
-# @frappe.whitelist()
-# def make_sales_invoice(customer=None):
-#     try:
-#         if not frappe.db.exists("Customer", customer):
-#             return 0
-#         customer_doc = frappe.get_doc("Customer", customer)
-        
-#         customer_balance = cint(customer_doc.custom_customer_balance)
-#         if customer_balance < 35:
-#             return 1
-#         else:
-#             doc = frappe.get_doc({
-#                 "doctype": "Sales Invoice",
-#                 "customer": customer,
-#                 "items": [
-#                     {
-#                         "item_code": "Passenger Ticket",
-#                         "qty": 1,
-#                         "rate": 35
-#                     }
-#                 ]
-#             })
-#             doc.insert()
-#             doc.submit()
-#             remaining_balance = customer_balance - 35
-
-#             frappe.db.set_value("Customer", customer, "custom_customer_balance", remaining_balance)
-#             frappe.db.commit()
-#             make_payment(doc.name)
-            
-#             # Generate PDF and get the URL
-#             pdf_url = frappe.utils.print_format.download_pdf("Sales Invoice", doc.name, format="POS Invoice")
-#             return pdf_url
-#     except Exception as e:
-#         frappe.log_error(frappe.get_traceback(), f"Error in make_sales_invoice: {e}")
-#         return e
-
-        
-#create payment entry
-# def make_payment(inv):
-#     inv = frappe.get_doc("Sales Invoice", inv)
-#     doc = frappe.get_doc({
-#         "doctype": "Payment Entry",
-#         "payment_type": "Receive",
-#         "posting_date": inv.posting_date,
-#         "party_type": "Customer",
-#         "party": inv.customer,
-#         "paid_amount": inv.grand_total,
-#         "received_amount": inv.grand_total,
-#         "mode_of_payment": "Cash",
-#         "paid_from": "Debtors - GFS",
-#         "paid_to": "Bank Account - GFS",
-#         "reference_no": inv.name,
-#         "reference_date":inv.posting_date,
-#         "references": [
-#             {
-#                 "reference_doctype": "Sales Invoice",
-#                 "reference_name": inv.name,
-#                 "total_amount": inv.grand_total,
-#                 "outstanding_amount": 0,
-#                 "allocated_amount": inv.grand_total
-#             }
-#         ]
-        
-
-
-#         })
-#     doc.insert()
-#     doc.submit()
-#     frappe.db.commit()
-# #validte custome rbalanc
-# def validate_balance(customer):
-#     balance = frappe.db.get_value("Customer", customer, "custom_customer_balance")
-#     if cint(balance) < cint(amount):
-#         return "Customer is low in balance, please refill your card"
